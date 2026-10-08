@@ -19,12 +19,38 @@ from aiogram.types import (
 # Загружаем переменные окружения (.env)
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-# ID чата или админа, куда присылать новые заявки (можно указать свой Telegram ID)
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+# Поддержка всех возможных вариантов названий переменных
+BOT_TOKEN = (
+    os.getenv("BOT_TOKEN")
+    or os.getenv("TELEGRAM_BOT_TOKEN")
+    or os.getenv("TELEGRAM_TOKEN")
+    or os.getenv("TOKEN")
+)
+
+ADMIN_CHAT_ID = (
+    os.getenv("ADMIN_CHAT_ID")
+    or os.getenv("ADMIN_ID")
+    or os.getenv("CHAT_ID")
+    or os.getenv("TELEGRAM_ADMIN_ID")
+    or os.getenv("ADMIN")
+)
+
+# Дополнительные настраиваемые переменные (по желанию)
+SITE_URL = os.getenv("SITE_URL", "https://ais-dev-cdlf3ezhuvi7anp6qx2pxp-417559399269.europe-west2.run.app").strip().strip('"\'')
+ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+7 (900) 000-00-00").strip().strip('"\'')
+
+# Очистка токена от возможных пробелов и кавычек при копировании в Railway
+if BOT_TOKEN:
+    BOT_TOKEN = BOT_TOKEN.strip().strip('"\'')
+
+if ADMIN_CHAT_ID:
+    ADMIN_CHAT_ID = ADMIN_CHAT_ID.strip().strip('"\'')
 
 if not BOT_TOKEN:
-    raise ValueError("ОШИБКА: BOT_TOKEN не задан в переменных окружения или файле .env!")
+    raise ValueError(
+        "ОШИБКА: Токен бота не задан! "
+        "В Railway во вкладке Variables добавьте переменную BOT_TOKEN (или TELEGRAM_BOT_TOKEN) со значением токена от @BotFather."
+    )
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
@@ -55,7 +81,7 @@ def get_main_menu():
             InlineKeyboardButton(text="✍️ Записаться на пробное", callback_data="start_booking")
         ],
         [
-            InlineKeyboardButton(text="🌐 Наш сайт", url="https://ais-dev-cdlf3ezhuvi7anp6qx2pxp-417559399269.europe-west2.run.app")
+            InlineKeyboardButton(text="🌐 Наш сайт", url=SITE_URL)
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -180,7 +206,7 @@ async def info_contacts(callback: types.CallbackQuery):
         "📍 <b>Контакты и адрес школы «ЛидерА»:</b>\n\n"
         "🏢 <b>Адрес:</b> г. Ангарск, 92/93 квартал, дом 19\n"
         "⏰ <b>График работы:</b> Ежедневно с 08:00 до 20:30 (без выходных)\n"
-        "📞 <b>Телефон администратора:</b> +7 (900) 000-00-00\n"
+        f"📞 <b>Телефон администратора:</b> {ADMIN_PHONE}\n"
         "💬 <b>Мы всегда на связи!</b>"
     )
     await callback.message.edit_text(text, reply_markup=get_back_button(), parse_mode="HTML")
@@ -246,6 +272,7 @@ async def process_phone(message: types.Message, state: FSMContext):
     # Уведомление администратору (если задан ADMIN_CHAT_ID)
     if ADMIN_CHAT_ID:
         try:
+            target_chat_id = int(ADMIN_CHAT_ID) if ADMIN_CHAT_ID.lstrip('-').isdigit() else ADMIN_CHAT_ID
             admin_msg = (
                 "🔔 <b>НОВАЯ ЗАЯВКА С TELEGRAM-БОТА!</b>\n\n"
                 f"👤 <b>Имя:</b> {name}\n"
@@ -253,7 +280,7 @@ async def process_phone(message: types.Message, state: FSMContext):
                 f"🎯 <b>Направление:</b> {direction}\n"
                 f"💬 <b>Telegram:</b> @{message.from_user.username or 'нет юзернейма'} (id: {message.from_user.id})"
             )
-            await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode="HTML")
+            await bot.send_message(chat_id=target_chat_id, text=admin_msg, parse_mode="HTML")
         except Exception as e:
             logging.error(f"Не удалось отправить уведомление админу: {e}")
 
